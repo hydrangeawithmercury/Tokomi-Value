@@ -1,45 +1,45 @@
 name: build
 
 on:
-push:
-tags:
-- "v*"
-workflow_dispatch: {}
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
 
 permissions:
-contents: write
+  contents: write
 
 jobs:
-build-windows:
-runs-on: windows-latest
-steps:
-- name: Checkout repository
-uses: actions/checkout@v4
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-- name: Install Rust (stable)
-uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
 
-- name: Cache Rust build
-uses: swatinem/rust-cache@v2
-with:
-workspaces: "./src-tauri -> target"
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
 
-- name: Build the app
-uses: tauri-apps/tauri-action@v0
-env:
-GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-with:
-projectPath: "."
-tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-releaseName: "Tokomi Value ${{ github.ref_name }}"
-releaseBody: "自動ビルド版。下の Assets からダウンロードしてください。"
-releaseDraft: true
-prerelease: false
+      - name: Build the app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: "."
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: "Tokomi Value ${{ github.ref_name }}"
+          releaseBody: "自動ビルド版。下の Assets からダウンロードしてください。"
+          releaseDraft: true
+          prerelease: false
 
-- name: Upload installers as artifacts (manual runs)
-if: github.ref_type != 'tag'
-uses: actions/upload-artifact@v4
-with:
-name: tokomi-value-windows
-path: src-tauri/target/release/bundle/**/*
-if-no-files-found: warn
+      - name: Upload installers as artifacts (manual runs)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tokomi-value-windows
+          path: src-tauri/target/release/bundle/**/*
+          if-no-files-found: warn
