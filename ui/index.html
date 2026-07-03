@@ -14,6 +14,7 @@
     --line:#2a2d34; --line-soft:#212329;
     --ink:#e8e6df; --ink-dim:#8a8d97; --ink-faint:#52555f;
     --accent:#6495ed; --accent-dim:rgba(100,149,237,.16); --accent-ink:#08152b;
+    --crop:#ff5a5a; --crop-dim:rgba(255,90,90,.14);
     --lowkey:#7f9fe6; --highkey:#cfd6e6; --danger:oklch(62% 0.19 25);
     --live:oklch(74% 0.16 150);
     --font-ui:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
@@ -25,7 +26,7 @@
   body{ display:flex; flex-direction:column; position:relative; }
   .mono{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
 
-  /* ---- titlebar ---- */
+  /* titlebar */
   .titlebar{ display:flex; align-items:center; justify-content:space-between;
     padding:9px 12px; background:var(--bg-well); border-bottom:1px solid var(--line);
     -webkit-app-region:drag; app-region:drag; flex:0 0 auto; }
@@ -35,19 +36,17 @@
   .dot.armed{ background:var(--accent); box-shadow:0 0 0 3px var(--accent-dim); }
   .titlebar-title{ font-size:12px; letter-spacing:.16em; font-weight:700; text-transform:uppercase; }
   .titlebar-sub{ font-size:9.5px; color:var(--ink-faint); letter-spacing:.04em; }
-  .titlebar-right{ display:flex; align-items:center; gap:7px;
-    -webkit-app-region:no-drag; app-region:no-drag; }
+  .titlebar-right{ display:flex; align-items:center; gap:7px; -webkit-app-region:no-drag; app-region:no-drag; }
   .status-text{ font-size:10px; color:var(--ink-dim); margin-right:1px; }
   .status-text.live{ color:var(--live); } .status-text.armed{ color:var(--accent); }
+  .status-text.warn{ color:var(--danger); }
   .tb-btn{ cursor:pointer; border:1px solid var(--line); background:var(--bg-well); color:var(--ink-faint);
     border-radius:6px; width:30px; height:27px; display:flex; align-items:center; justify-content:center;
     font-size:13px; transition:all .15s; }
   .tb-btn:hover{ color:var(--ink); border-color:#3a3d46; }
+  .tb-btn:disabled{ opacity:.4; cursor:not-allowed; }
   .tb-btn.active{ color:var(--accent); border-color:var(--accent); background:var(--accent-dim); }
-  .tb-btn.danger:hover{ color:var(--danger); border-color:var(--danger); }
-  .tb-btn.hidden{ display:none; }
 
-  /* ---- body ---- */
   .body{ flex:1 1 auto; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:11px; }
 
   .controlbar{ display:flex; gap:6px; }
@@ -59,10 +58,9 @@
   button.primary{ flex:1; background:var(--accent); color:var(--accent-ink); border-color:var(--accent);
     font-weight:700; font-size:12.5px; }
   button.primary:hover{ filter:brightness(1.07); }
-  button.disconnect-btn{ width:44px; display:flex; align-items:center; justify-content:center; font-size:12px; }
+  button.disconnect-btn,button.live-toggle{ width:44px; display:flex; align-items:center; justify-content:center; font-size:12px; }
   button.disconnect-btn:hover{ color:var(--danger); border-color:var(--danger); }
-  button.disconnect-btn.hidden{ display:none; }
-  button.live-toggle{ width:44px; display:flex; align-items:center; justify-content:center; font-size:12px; }
+  button.hidden{ display:none; }
   button.live-toggle.active{ background:oklch(74% 0.16 150 / .16); color:var(--live); border-color:var(--live); }
   button.tab{ flex:1; padding:7px 6px; font-size:11px; }
   button.tab.active{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
@@ -71,28 +69,40 @@
     border-radius:6px; padding:8px 9px; font-size:11px; }
   select:disabled{ opacity:.4; }
 
-  /* ---- preview: canvas is intrinsically square (500x500), so scaling never distorts ---- */
+  /* crop control row */
+  .croprow{ display:flex; gap:6px; }
+  button.mini{ flex:1; padding:7px 6px; font-size:11px; display:flex; align-items:center; justify-content:center; gap:5px; }
+  button.mini.active{ background:var(--crop-dim); color:var(--crop); border-color:var(--crop); }
+
+  /* preview (canvas intrinsic size follows capture aspect; CSS scales uniformly) */
   .preview-wrap{ position:relative; width:100%;
     background:linear-gradient(45deg,#1d1f25 25%,transparent 25%),linear-gradient(-45deg,#1d1f25 25%,transparent 25%),
       linear-gradient(45deg,transparent 75%,#1d1f25 75%),linear-gradient(-45deg,transparent 75%,#1d1f25 75%);
     background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; background-color:var(--bg-well);
     border:1px solid var(--line-soft); border-radius:6px; overflow:hidden; }
-  canvas#preview{ display:block; width:100%; height:auto; aspect-ratio:1/1; }
+  canvas#preview{ display:block; width:100%; height:auto; }
   .preview-wrap.flash{ animation:shutter .3s ease-out; }
   @keyframes shutter{ 0%{ box-shadow:inset 0 0 0 3px var(--accent); } 100%{ box-shadow:inset 0 0 0 0 transparent; } }
   .preview-empty{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:8px; color:var(--ink-faint); font-size:11.5px; text-align:center; padding:20px; line-height:1.7; }
   .preview-empty .big{ font-size:30px; opacity:.5; }
+  .preview-empty b{ color:var(--ink-dim); }
   .preview-label{ position:absolute; top:8px; left:8px; font-size:9.5px; letter-spacing:.1em; color:var(--ink-dim);
     background:rgba(12,13,16,.72); padding:3px 7px; border-radius:4px; text-transform:uppercase; pointer-events:none; }
 
-  /* ---- readouts ---- */
+  /* crop overlay */
+  .crop-overlay{ position:absolute; inset:0; display:none; cursor:crosshair; z-index:6; }
+  .crop-sel{ position:absolute; display:none; border:1.5px solid var(--crop); background:var(--crop-dim);
+    box-shadow:0 0 0 9999px rgba(0,0,0,.45); }
+  .crop-hint{ position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:7;
+    font-size:10.5px; color:#fff; background:rgba(255,90,90,.85); padding:4px 10px; border-radius:5px;
+    pointer-events:none; display:none; white-space:nowrap; }
+
   .readouts{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
   .stat{ background:var(--bg-well); border:1px solid var(--line-soft); border-radius:6px; padding:7px 8px; }
   .stat-label{ font-size:8.5px; color:var(--ink-faint); letter-spacing:.08em; text-transform:uppercase; }
   .stat-value{ font-size:15px; font-weight:700; margin-top:2px; }
 
-  /* ---- collapsible legend ---- */
   .legend-toggle{ display:inline-flex; align-items:center; gap:5px; align-self:flex-start;
     background:none; border:none; color:var(--accent); font-size:11px; padding:2px 0; cursor:pointer; }
   .legend-toggle .chev{ transition:transform .18s; font-size:9px; }
@@ -103,13 +113,11 @@
   .legend b{ color:var(--ink); font-weight:600; }
   .legend .sub{ padding-left:12px; }
 
-  /* ---- footer logo (bigger, no hover reaction) ---- */
   .footer-logo{ display:flex; justify-content:center; align-items:center; padding:6px 0 2px; margin-top:auto; }
   .footer-logo img{ height:52px; width:auto; opacity:.6; }
 
-  /* ---- histogram drawer (hamburger) ---- */
-  .drawer{ position:absolute; inset:0; z-index:20; background:rgba(10,11,13,.72);
-    backdrop-filter:blur(2px); display:none; }
+  /* histogram drawer */
+  .drawer{ position:absolute; inset:0; z-index:20; background:rgba(10,11,13,.72); backdrop-filter:blur(2px); display:none; }
   .drawer.open{ display:block; }
   .drawer-panel{ position:absolute; left:0; right:0; top:0; background:var(--bg-panel);
     border-bottom:1px solid var(--line); padding:14px; box-shadow:0 20px 40px -18px rgba(0,0,0,.7);
@@ -165,9 +173,16 @@
       <button class="tab" data-mode="chroma">彩度 C</button>
     </div>
 
+    <div class="croprow">
+      <button class="mini" id="cropBtn" title="キャンバス範囲を囲う" disabled>&#9635; 範囲設定</button>
+      <button class="mini" id="cropResetBtn" title="範囲指定を解除して全体に戻す" disabled>全体に戻す</button>
+    </div>
+
     <div class="preview-wrap" id="previewWrap">
       <canvas id="preview" width="500" height="500"></canvas>
       <div class="preview-label" id="previewLabel" style="display:none;"></div>
+      <div class="crop-hint" id="cropHint">ドラッグでキャンバス範囲を囲ってください</div>
+      <div class="crop-overlay" id="cropOverlay"><div class="crop-sel" id="cropSel"></div></div>
       <div class="preview-empty" id="emptyState">
         <div class="big">&#9703;</div>
         <div><b>「キャンバスを取得」</b>をクリック後、<br>ここに最新のキャンバス画面が反映されます。</div>
@@ -183,7 +198,8 @@
 
     <button class="legend-toggle" id="legendToggle"><span class="chev">&#9654;</span>使い方</button>
     <div class="legend" id="legend">
-      <div><b>キャンバスを取得</b> ボタンをクリックで現在の作業画面を反映。</div>
+      <div><b>キャンバスを取得 / 更新</b> で現在の作業画面を反映。</div>
+      <div><b>&#9635; 範囲設定</b> で解析するキャンバス範囲をドラッグ指定（UIを除外できます）。</div>
       <div class="sub"><b>&#10005;</b> で作業画面の反映を解除。</div>
       <div><b>&#9654;</b> ボタンでライブ更新（低fpsリアルタイム反映）。</div>
       <div><b>&#128274;</b> ボタンでウインドウを常に最前面に固定可能。</div>
@@ -192,7 +208,6 @@
     <div class="footer-logo"><img src="logo-small.png" alt="Tokomi Value"></div>
   </div>
 
-  <!-- histogram drawer -->
   <div class="drawer" id="drawer">
     <div class="drawer-panel">
       <div class="drawer-head">
@@ -215,14 +230,14 @@
   const invoke = TAURI ? window.__TAURI__.core.invoke : null;
   const ACCENT = '#6495ed';
 
-  const RES_GRAB = 240;   // crisp one-shot
-  const RES_STREAM = 88;  // light continuous
+  const RES_GRAB = 240;   // crisp one-shot (max side)
+  const RES_STREAM = 88;  // light continuous (max side)
 
   const el = {
     primaryBtn:document.getElementById('primaryBtn'),
+    disconnectBtn:document.getElementById('disconnectBtn'),
     liveBtn:document.getElementById('liveBtn'),
     rateSelect:document.getElementById('rateSelect'),
-    disconnectBtn:document.getElementById('disconnectBtn'),
     pinBtn:document.getElementById('pinBtn'),
     menuBtn:document.getElementById('menuBtn'),
     drawer:document.getElementById('drawer'),
@@ -233,20 +248,26 @@
     previewWrap:document.getElementById('previewWrap'),
     previewLabel:document.getElementById('previewLabel'),
     preview:document.getElementById('preview'),
+    cropBtn:document.getElementById('cropBtn'),
+    cropResetBtn:document.getElementById('cropResetBtn'),
+    cropOverlay:document.getElementById('cropOverlay'),
+    cropSel:document.getElementById('cropSel'),
+    cropHint:document.getElementById('cropHint'),
     hist:document.getElementById('hist'),
     statL:document.getElementById('statL'), statSigma:document.getElementById('statSigma'),
     statC:document.getElementById('statC'), statH:document.getElementById('statH'),
     keyChip:document.getElementById('keyChip'),
     legendToggle:document.getElementById('legendToggle'), legend:document.getElementById('legend'),
   };
-  const pctx = el.preview.getContext('2d',{willReadFrequently:true});
+  // preview only draws; sample is read every frame.
+  const pctx = el.preview.getContext('2d');
+  const sctx = (()=>{ const c=document.createElement('canvas'); return c.getContext('2d',{willReadFrequently:true}); })();
+  const sample = sctx.canvas;
   const hctx = el.hist.getContext('2d');
 
-  const sample = document.createElement('canvas');
-  const sctx = sample.getContext('2d',{willReadFrequently:true});
-
   const state = { stream:null, video:null, liveTimer:null, mode:'normal',
-                  connected:false, live:false, pinned:true, lastRes:RES_GRAB };
+                  connected:false, live:false, pinned:true, lastRes:RES_GRAB,
+                  cropRect:null, cropMode:false };
 
   // ---- colour math: sRGB(0..255) -> linear LUT, then OKLab/OKLCh ----
   const LIN = new Float32Array(256);
@@ -279,11 +300,34 @@
 
   const waitFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
+  // ---- capture rect: normalized crop (0..1) → source px, else the whole frame ----
+  function getCaptureRect(v){
+    if(state.cropRect){
+      const c=state.cropRect;
+      return { x:c.x*v.videoWidth, y:c.y*v.videoHeight, w:c.w*v.videoWidth, h:c.h*v.videoHeight };
+    }
+    return { x:0, y:0, w:v.videoWidth, h:v.videoHeight };
+  }
+  // size a target (w,h) to a given max side while preserving aspect
+  function fitAspect(aspect, maxSide){
+    return aspect>=1 ? { w:maxSide, h:Math.max(1,Math.round(maxSide/aspect)) }
+                     : { w:Math.max(1,Math.round(maxSide*aspect)), h:maxSide };
+  }
+
   // ---- capture ----
   async function connect(){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia){
+      setStatus('warn','画面取得非対応');
+      el.emptyState.style.display='flex';
+      el.emptyState.innerHTML =
+        '<div class="big">&#9888;</div>' +
+        '<div>この環境では画面取得APIが使えません。<br>Tauri側のネイティブキャプチャ実装が必要です。</div>';
+      return;
+    }
     let stream;
     try{ stream = await navigator.mediaDevices.getDisplayMedia({video:{frameRate:10},audio:false}); }
-    catch(e){ return; }
+    catch(e){ setStatus('','取得キャンセル'); return; }
+
     state.stream=stream;
     state.video=document.createElement('video');
     state.video.srcObject=stream; await state.video.play();
@@ -291,22 +335,26 @@
     stream.getVideoTracks()[0].addEventListener('ended', disconnect);
 
     el.emptyState.style.display='none';
-    el.primaryBtn.textContent='キャンバスを取得';
+    el.primaryBtn.textContent='更新';
     el.liveBtn.disabled=false;
     el.disconnectBtn.classList.remove('hidden');
+    el.cropBtn.disabled=false; el.cropResetBtn.disabled=false;
     setStatus('armed','取得待機');
-    await waitFrame();   // ensure the first frame is decoded before grabbing
+    await waitFrame();
     grabOnce();
   }
 
   function disconnect(){
     setLive(false);
+    exitCrop();
     if(state.stream) state.stream.getTracks().forEach(t=>t.stop());
-    state.stream=null; state.video=null; state.connected=false;
+    state.stream=null; state.video=null; state.connected=false; state.cropRect=null;
     el.primaryBtn.textContent='キャンバスを取得';
     el.liveBtn.disabled=true; el.disconnectBtn.classList.add('hidden');
+    el.cropBtn.disabled=true; el.cropResetBtn.disabled=true;
     el.emptyState.style.display='flex';
     setStatus('','未接続');
+    el.preview.width=500; el.preview.height=500;
     pctx.clearRect(0,0,el.preview.width,el.preview.height);
     hctx.clearRect(0,0,el.hist.width,el.hist.height);
     ['statL','statSigma','statC','statH'].forEach(k=>el[k].textContent='\u2014');
@@ -337,28 +385,32 @@
   function setStatus(kind,text){
     el.statusText.textContent=text;
     el.statusText.className='status-text'+(kind?' '+kind:'');
-    el.liveDot.className='dot'+(kind?' '+kind:'');
+    el.liveDot.className='dot'+(kind==='live'||kind==='armed'?' '+kind:'');
   }
 
-  // ---- analysis (preview backing store is a fixed 500x500 square; CSS scales it uniformly) ----
+  // ---- analysis (aspect-preserving; crop region only) ----
   function analyze(res){
     const v=state.video; if(!v||!v.videoWidth) return;
     state.lastRes=res;
-    const side=Math.min(v.videoWidth,v.videoHeight);
-    const sx=(v.videoWidth-side)/2, sy=(v.videoHeight-side)/2;
+    const rect=getCaptureRect(v);
+    const aspect=rect.w/rect.h;
 
-    if(sample.width!==res){ sample.width=res; sample.height=res; }
-    sctx.drawImage(v,sx,sy,side,side,0,0,res,res);
-    const srcData=sctx.getImageData(0,0,res,res).data;
-    const N=res*res;
+    const s=fitAspect(aspect,res);          // sample size
+    if(sample.width!==s.w||sample.height!==s.h){ sample.width=s.w; sample.height=s.h; }
+    const p=fitAspect(aspect,500);          // preview backing size
+    if(el.preview.width!==p.w||el.preview.height!==p.h){ el.preview.width=p.w; el.preview.height=p.h; }
+
+    sctx.drawImage(v, rect.x,rect.y,rect.w,rect.h, 0,0,s.w,s.h);
+    const srcData=sctx.getImageData(0,0,s.w,s.h).data;
+    const N=s.w*s.h;
     const Ls=new Float32Array(N);
     const hueBins=new Float32Array(36);
     let sumL=0,sumC=0;
     const mode=state.mode, buildMap=(mode!=='normal');
-    const out=buildMap?sctx.createImageData(res,res):null;
+    const out=buildMap?sctx.createImageData(s.w,s.h):null;
 
-    for(let i=0,p=0;i<N;i++,p+=4){
-      const r=srcData[p],g=srcData[p+1],b=srcData[p+2];
+    for(let i=0,q=0;i<N;i++,q+=4){
+      const r=srcData[q],g=srcData[q+1],b=srcData[q+2];
       const [L,C,H]=rgbToOklch(r,g,b);
       Ls[i]=L; sumL+=L; sumC+=C;
       if(C>0.02) hueBins[(H/10|0)%36]+=C;
@@ -367,14 +419,14 @@
         if(mode==='value'){ const gr=(L<0?0:L>1?255:(L*255+.5)|0); R=G=B=gr; }
         else if(mode==='chroma'){ const t=C/0.35, gr=(t>1?255:(t*255+.5)|0); R=G=B=gr; }
         else { if(C>0.02){[R,G,B]=oklchToRgb(0.70,0.13,H);} else {const gr=(L*160+40)|0;R=G=B=gr;} }
-        out.data[p]=R;out.data[p+1]=G;out.data[p+2]=B;out.data[p+3]=255;
+        out.data[q]=R;out.data[q+1]=G;out.data[q+2]=B;out.data[q+3]=255;
       }
     }
 
     pctx.imageSmoothingEnabled=true;
-    pctx.clearRect(0,0,el.preview.width,el.preview.height);
-    if(buildMap){ sctx.putImageData(out,0,0); pctx.drawImage(sample,0,0,el.preview.width,el.preview.height); }
-    else { pctx.drawImage(v,sx,sy,side,side,0,0,el.preview.width,el.preview.height); }
+    pctx.clearRect(0,0,p.w,p.h);
+    if(buildMap){ sctx.putImageData(out,0,0); pctx.drawImage(sample,0,0,p.w,p.h); }
+    else { pctx.drawImage(v, rect.x,rect.y,rect.w,rect.h, 0,0,p.w,p.h); }
 
     const meanL=sumL/N, meanC=sumC/N;
     let varSum=0; for(let i=0;i<N;i++){const d=Ls[i]-meanL;varSum+=d*d;}
@@ -406,8 +458,8 @@
     const bw=w/bins;
     for(let i=0;i<bins;i++){
       const bh=(counts[i]/maxC)*(h-4);
-      const v=Math.round((i/bins)*100);
-      hctx.fillStyle=`rgb(${Math.round(v*2.55)},${Math.round(v*2.55)},${Math.round(v*2.55)})`;
+      const g=Math.round((i/bins)*255);
+      hctx.fillStyle=`rgb(${g},${g},${g})`;
       hctx.fillRect(i*bw+0.5,h-bh,bw-1,bh);
     }
     const mx=meanL*w;
@@ -415,11 +467,72 @@
     hctx.beginPath(); hctx.moveTo(mx,0); hctx.lineTo(mx,h); hctx.stroke();
   }
 
-  // ---- pin (native) ----
+  // ---- crop range (drag a red rectangle over the full frame) ----
+  function drawFullFrame(){
+    const v=state.video; if(!v||!v.videoWidth) return;
+    const p=fitAspect(v.videoWidth/v.videoHeight,500);
+    el.preview.width=p.w; el.preview.height=p.h;
+    pctx.imageSmoothingEnabled=true;
+    pctx.clearRect(0,0,p.w,p.h);
+    pctx.drawImage(v,0,0,v.videoWidth,v.videoHeight,0,0,p.w,p.h);
+  }
+  function enterCrop(){
+    if(!state.connected){ return; }
+    if(state.cropMode){ exitCrop(); return; }
+    setLive(false);
+    state.cropMode=true;
+    drawFullFrame();                 // show the whole shared frame to draw on
+    el.cropOverlay.style.display='block';
+    el.cropHint.style.display='block';
+    el.cropSel.style.display='none';
+    el.cropBtn.classList.add('active');
+  }
+  function exitCrop(){
+    state.cropMode=false;
+    el.cropOverlay.style.display='none';
+    el.cropHint.style.display='none';
+    el.cropSel.style.display='none';
+    el.cropBtn.classList.remove('active');
+  }
+  function resetCrop(){
+    state.cropRect=null;
+    if(state.cropMode) exitCrop();
+    if(state.connected) grabOnce();
+  }
+
+  let drag=null;
+  function ovPos(e){ const r=el.previewWrap.getBoundingClientRect();
+    return { r, x:Math.max(0,Math.min(r.width,e.clientX-r.left)), y:Math.max(0,Math.min(r.height,e.clientY-r.top)) }; }
+  el.cropOverlay.addEventListener('pointerdown',(e)=>{
+    const pos=ovPos(e); drag={x0:pos.x,y0:pos.y};
+    el.cropOverlay.setPointerCapture && el.cropOverlay.setPointerCapture(e.pointerId);
+    el.cropSel.style.display='block';
+    el.cropSel.style.left=pos.x+'px'; el.cropSel.style.top=pos.y+'px';
+    el.cropSel.style.width='0px'; el.cropSel.style.height='0px';
+  });
+  el.cropOverlay.addEventListener('pointermove',(e)=>{
+    if(!drag) return;
+    const pos=ovPos(e);
+    const left=Math.min(drag.x0,pos.x), top=Math.min(drag.y0,pos.y);
+    el.cropSel.style.left=left+'px'; el.cropSel.style.top=top+'px';
+    el.cropSel.style.width=Math.abs(pos.x-drag.x0)+'px'; el.cropSel.style.height=Math.abs(pos.y-drag.y0)+'px';
+  });
+  el.cropOverlay.addEventListener('pointerup',(e)=>{
+    if(!drag) return;
+    const pos=ovPos(e), r=pos.r;
+    const left=Math.min(drag.x0,pos.x), top=Math.min(drag.y0,pos.y);
+    const w=Math.abs(pos.x-drag.x0), h=Math.abs(pos.y-drag.y0);
+    drag=null;
+    if(w>8 && h>8){ state.cropRect={ x:left/r.width, y:top/r.height, w:w/r.width, h:h/r.height }; }
+    exitCrop();
+    grabOnce();
+  });
+
+  // ---- pin (native only) ----
   async function setPinned(on){
     state.pinned=on;
     el.pinBtn.classList.toggle('active',on);
-    el.pinBtn.innerHTML = on ? '&#128274;' : '&#128275;';   // 🔒 / 🔓
+    el.pinBtn.innerHTML = on ? '&#128274;' : '&#128275;';
     el.pinBtn.title = on ? '常に最前面：ON' : '常に最前面：OFF';
     if(invoke){ try{ await invoke('set_always_on_top',{on}); }catch(e){} }
   }
@@ -433,12 +546,14 @@
 
   // ---- wiring ----
   el.primaryBtn.addEventListener('click',()=> state.connected ? grabOnce() : connect());
-  el.liveBtn.addEventListener('click',()=>{ if(state.connected) setLive(!state.live); });
   el.disconnectBtn.addEventListener('click', disconnect);
-  el.pinBtn.addEventListener('click',()=>setPinned(!state.pinned));
+  el.liveBtn.addEventListener('click',()=>{ if(state.connected) setLive(!state.live); });
+  el.pinBtn.addEventListener('click',()=>{ if(invoke) setPinned(!state.pinned); });
   el.menuBtn.addEventListener('click',()=>toggleDrawer());
   el.drawerClose.addEventListener('click',()=>toggleDrawer(false));
   el.drawer.addEventListener('click',(e)=>{ if(e.target===el.drawer) toggleDrawer(false); });
+  el.cropBtn.addEventListener('click', enterCrop);
+  el.cropResetBtn.addEventListener('click', resetCrop);
 
   el.legendToggle.addEventListener('click',()=>{
     const open=!el.legend.classList.contains('open');
@@ -450,14 +565,16 @@
     btn.addEventListener('click',()=>{
       document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active'); state.mode=btn.dataset.mode;
-      const labels={normal:'',value:'VALUE  L*',hue:'HUE  H (uniform L)',chroma:'CHROMA  C'};
+      const labels={normal:'',value:'VALUE  OKL',hue:'HUE  H (uniform L)',chroma:'CHROMA  C'};
       const t=labels[state.mode];
       el.previewLabel.style.display=t?'block':'none'; el.previewLabel.textContent=t;
-      if(state.connected && !state.live) grabOnce();
+      if(state.connected && !state.live && !state.cropMode) grabOnce();
     });
   });
 
-  setPinned(true);
+  // pin only works under Tauri (withGlobalTauri). Disable it in a plain browser.
+  if(!invoke){ el.pinBtn.disabled=true; el.pinBtn.title='Tauri環境でのみ使用できます'; }
+  else { setPinned(true); }
 })();
 </script>
 </body>
