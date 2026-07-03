@@ -7,130 +7,128 @@
 <!--
   Tokomi Value — native shell (Tauri v2)
   100% local: no network requests, no fonts fetched, no analytics, no tracking.
-  Screen analysis happens entirely on this machine; nothing is transmitted.
-
-  Capture model: manual-grab first. A single "📷 grab" reads ONE high-resolution
-  frame and analyses it (crisp, cheap). An optional live toggle streams at a
-  lighter analysis resolution for when you want to watch while you move.
 -->
 <style>
   :root{
     --bg:#121316; --bg-panel:#191b20; --bg-well:#0c0d10;
     --line:#2a2d34; --line-soft:#212329;
     --ink:#e8e6df; --ink-dim:#8a8d97; --ink-faint:#52555f;
-    --accent:oklch(78% 0.16 95); --accent-dim:oklch(78% 0.16 95 / 0.16);
-    --lowkey:oklch(62% 0.13 255); --highkey:oklch(85% 0.09 95); --danger:oklch(62% 0.19 25);
-    --live:oklch(72% 0.17 145);
+    --accent:#6495ed; --accent-dim:rgba(100,149,237,.16); --accent-ink:#08152b;
+    --lowkey:#7f9fe6; --highkey:#cfd6e6; --danger:oklch(62% 0.19 25);
+    --live:oklch(74% 0.16 150);
     --font-ui:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
     --font-mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Consolas,monospace;
   }
-  *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{background:var(--bg);color:var(--ink);font-family:var(--font-ui);
-    -webkit-font-smoothing:antialiased;height:100vh;overflow:hidden;user-select:none;}
-  body{display:flex;flex-direction:column;position:relative;}
-  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ background:var(--bg); color:var(--ink); font-family:var(--font-ui);
+    -webkit-font-smoothing:antialiased; height:100vh; overflow:hidden; user-select:none; }
+  body{ display:flex; flex-direction:column; position:relative; }
+  .mono{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
 
-  /* ---- opening splash ---- */
-  .splash{position:fixed;inset:0;z-index:50;background:var(--bg);
-    display:flex;align-items:center;justify-content:center;padding:8%;}
-  .splash img{max-width:82%;max-height:60%;object-fit:contain;
-    filter:drop-shadow(0 0 26px rgba(120,170,255,.18));
-    animation:splashLogo 2.3s cubic-bezier(.2,.7,.2,1) forwards;}
-  .splash.done{animation:splashOut .5s ease forwards;}
-  @keyframes splashLogo{
-    0%{opacity:0;transform:scale(.94) translateY(6px);}
-    42%{opacity:1;transform:scale(1) translateY(0);}
-    80%{opacity:1;transform:scale(1) translateY(0);}
-    100%{opacity:.96;transform:scale(1.005);}
-  }
-  @keyframes splashOut{to{opacity:0;visibility:hidden;}}
-  @media (prefers-reduced-motion:reduce){ .splash{display:none;} }
+  /* ---- titlebar ---- */
+  .titlebar{ display:flex; align-items:center; justify-content:space-between;
+    padding:9px 12px; background:var(--bg-well); border-bottom:1px solid var(--line);
+    -webkit-app-region:drag; app-region:drag; flex:0 0 auto; }
+  .titlebar-left{ display:flex; align-items:center; gap:9px; }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--ink-faint); transition:.25s; }
+  .dot.live{ background:var(--live); box-shadow:0 0 0 3px oklch(74% 0.16 150 / .16); }
+  .dot.armed{ background:var(--accent); box-shadow:0 0 0 3px var(--accent-dim); }
+  .titlebar-title{ font-size:12px; letter-spacing:.16em; font-weight:700; text-transform:uppercase; }
+  .titlebar-sub{ font-size:9.5px; color:var(--ink-faint); letter-spacing:.04em; }
+  .titlebar-right{ display:flex; align-items:center; gap:7px;
+    -webkit-app-region:no-drag; app-region:no-drag; }
+  .status-text{ font-size:10px; color:var(--ink-dim); margin-right:1px; }
+  .status-text.live{ color:var(--live); } .status-text.armed{ color:var(--accent); }
+  .tb-btn{ cursor:pointer; border:1px solid var(--line); background:var(--bg-well); color:var(--ink-faint);
+    border-radius:6px; width:30px; height:27px; display:flex; align-items:center; justify-content:center;
+    font-size:13px; transition:all .15s; }
+  .tb-btn:hover{ color:var(--ink); border-color:#3a3d46; }
+  .tb-btn.active{ color:var(--accent); border-color:var(--accent); background:var(--accent-dim); }
+  .tb-btn.danger:hover{ color:var(--danger); border-color:var(--danger); }
+  .tb-btn.hidden{ display:none; }
 
-  /* ---- draggable titlebar ---- */
-  .titlebar{display:flex;align-items:center;justify-content:space-between;
-    padding:9px 12px;background:var(--bg-well);border-bottom:1px solid var(--line);
-    -webkit-app-region:drag;app-region:drag;flex:0 0 auto;}
-  .titlebar-left{display:flex;align-items:center;gap:9px;}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-faint);transition:.25s;}
-  .dot.live{background:var(--live);box-shadow:0 0 0 3px oklch(72% 0.17 145 / 0.16);}
-  .dot.armed{background:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
-  .titlebar-title{font-size:12px;letter-spacing:.16em;font-weight:700;text-transform:uppercase;}
-  .titlebar-sub{font-size:9.5px;color:var(--ink-faint);letter-spacing:.04em;}
-  .titlebar-right{display:flex;align-items:center;gap:8px;-webkit-app-region:no-drag;app-region:no-drag;}
-  .status-text{font-size:10px;color:var(--ink-dim);}
-  .status-text.live{color:var(--live);} .status-text.armed{color:var(--accent);}
-  .tb-btn{cursor:pointer;border:1px solid var(--line);background:var(--bg-well);color:var(--ink-faint);
-    border-radius:6px;width:30px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;}
-  .tb-btn:hover{color:var(--ink);border-color:#3a3d46;}
-  .tb-btn.active{color:var(--accent);border-color:var(--accent);background:var(--accent-dim);}
-  .tb-btn.danger:hover{color:var(--danger);border-color:var(--danger);}
-  .tb-btn.hidden{display:none;}
+  /* ---- body ---- */
+  .body{ flex:1 1 auto; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:11px; }
 
-  .body{flex:1 1 auto;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:11px;}
+  .controlbar{ display:flex; gap:6px; }
+  button{ font-family:inherit; cursor:pointer; border:1px solid var(--line); background:var(--bg-well);
+    color:var(--ink-dim); border-radius:6px; padding:9px 12px; font-size:12px; transition:all .15s; }
+  button:hover{ color:var(--ink); border-color:#3a3d46; }
+  button:disabled{ opacity:.4; cursor:not-allowed; }
+  button:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  button.primary{ flex:1; background:var(--accent); color:var(--accent-ink); border-color:var(--accent);
+    font-weight:700; font-size:12.5px; }
+  button.primary:hover{ filter:brightness(1.07); }
+  button.disconnect-btn{ width:44px; display:flex; align-items:center; justify-content:center; font-size:12px; }
+  button.disconnect-btn:hover{ color:var(--danger); border-color:var(--danger); }
+  button.disconnect-btn.hidden{ display:none; }
+  button.live-toggle{ width:44px; display:flex; align-items:center; justify-content:center; font-size:12px; }
+  button.live-toggle.active{ background:oklch(74% 0.16 150 / .16); color:var(--live); border-color:var(--live); }
+  button.tab{ flex:1; padding:7px 6px; font-size:11px; }
+  button.tab.active{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
+  .tabs{ display:flex; gap:5px; }
+  select{ font-family:inherit; background:var(--bg-well); color:var(--ink-dim); border:1px solid var(--line);
+    border-radius:6px; padding:8px 9px; font-size:11px; }
+  select:disabled{ opacity:.4; }
 
-  .controlbar{display:flex;gap:6px;}
-  button{font-family:inherit;cursor:pointer;border:1px solid var(--line);background:var(--bg-well);
-    color:var(--ink-dim);border-radius:6px;padding:9px 12px;font-size:12px;transition:all .15s;}
-  button:hover{color:var(--ink);border-color:#3a3d46;}
-  button:disabled{opacity:.4;cursor:not-allowed;}
-  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
-  button.primary{flex:1;background:var(--accent);color:#191203;border-color:var(--accent);font-weight:700;font-size:12.5px;}
-  button.primary:hover{filter:brightness(1.08);}
-  button.live-toggle{width:44px;display:flex;align-items:center;justify-content:center;font-size:12px;}
-  button.live-toggle.active{background:oklch(72% 0.17 145 / 0.16);color:var(--live);border-color:var(--live);}
-  button.tab{flex:1;padding:7px 6px;font-size:11px;}
-  button.tab.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent);}
-  .tabs{display:flex;gap:5px;}
-  select{font-family:inherit;background:var(--bg-well);color:var(--ink-dim);border:1px solid var(--line);
-    border-radius:6px;padding:8px 9px;font-size:11px;}
-  select:disabled{opacity:.4;}
-
-  .preview-wrap{position:relative;width:100%;aspect-ratio:1/1;
+  /* ---- preview: canvas is intrinsically square (500x500), so scaling never distorts ---- */
+  .preview-wrap{ position:relative; width:100%;
     background:linear-gradient(45deg,#1d1f25 25%,transparent 25%),linear-gradient(-45deg,#1d1f25 25%,transparent 25%),
       linear-gradient(45deg,transparent 75%,#1d1f25 75%),linear-gradient(-45deg,transparent 75%,#1d1f25 75%);
-    background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;background-color:var(--bg-well);
-    border:1px solid var(--line-soft);border-radius:6px;overflow:hidden;}
-  canvas#preview{width:100%;height:100%;display:block;}
-  .preview-wrap.flash::after{content:"";position:absolute;inset:0;background:#fff;
-    animation:shutter .28s ease-out;pointer-events:none;}
-  @keyframes shutter{from{opacity:.55;}to{opacity:0;}}
-  .preview-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:8px;color:var(--ink-faint);font-size:11.5px;text-align:center;padding:20px;line-height:1.7;}
-  .preview-empty .big{font-size:30px;opacity:.5;}
-  .preview-label{position:absolute;top:8px;left:8px;font-size:9.5px;letter-spacing:.1em;color:var(--ink-dim);
-    background:rgba(12,13,16,.72);padding:3px 7px;border-radius:4px;text-transform:uppercase;pointer-events:none;}
+    background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; background-color:var(--bg-well);
+    border:1px solid var(--line-soft); border-radius:6px; overflow:hidden; }
+  canvas#preview{ display:block; width:100%; height:auto; aspect-ratio:1/1; }
+  .preview-wrap.flash{ animation:shutter .3s ease-out; }
+  @keyframes shutter{ 0%{ box-shadow:inset 0 0 0 3px var(--accent); } 100%{ box-shadow:inset 0 0 0 0 transparent; } }
+  .preview-empty{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:8px; color:var(--ink-faint); font-size:11.5px; text-align:center; padding:20px; line-height:1.7; }
+  .preview-empty .big{ font-size:30px; opacity:.5; }
+  .preview-label{ position:absolute; top:8px; left:8px; font-size:9.5px; letter-spacing:.1em; color:var(--ink-dim);
+    background:rgba(12,13,16,.72); padding:3px 7px; border-radius:4px; text-transform:uppercase; pointer-events:none; }
 
-  .readouts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
-  .stat{background:var(--bg-well);border:1px solid var(--line-soft);border-radius:6px;padding:7px 8px;}
-  .stat-label{font-size:8.5px;color:var(--ink-faint);letter-spacing:.08em;text-transform:uppercase;}
-  .stat-value{font-size:15px;font-weight:700;margin-top:2px;}
+  /* ---- readouts ---- */
+  .readouts{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .stat{ background:var(--bg-well); border:1px solid var(--line-soft); border-radius:6px; padding:7px 8px; }
+  .stat-label{ font-size:8.5px; color:var(--ink-faint); letter-spacing:.08em; text-transform:uppercase; }
+  .stat-value{ font-size:15px; font-weight:700; margin-top:2px; }
 
-  .panel{background:var(--bg-well);border:1px solid var(--line-soft);border-radius:6px;padding:10px 10px 8px;}
-  .panel-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:7px;}
-  .panel-title{font-size:10px;letter-spacing:.09em;color:var(--ink-dim);text-transform:uppercase;}
-  .panel-key{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;}
-  .key-low{background:oklch(62% 0.13 255 / 0.18);color:var(--lowkey);}
-  .key-mid{background:var(--accent-dim);color:var(--accent);}
-  .key-high{background:oklch(85% 0.09 95 / 0.18);color:var(--highkey);}
-  canvas#hist{width:100%;height:70px;display:block;}
-  .hist-scale{display:flex;justify-content:space-between;font-size:8.5px;color:var(--ink-faint);margin-top:3px;}
+  /* ---- collapsible legend ---- */
+  .legend-toggle{ display:inline-flex; align-items:center; gap:5px; align-self:flex-start;
+    background:none; border:none; color:var(--accent); font-size:11px; padding:2px 0; cursor:pointer; }
+  .legend-toggle .chev{ transition:transform .18s; font-size:9px; }
+  .legend-toggle.open .chev{ transform:rotate(90deg); }
+  .legend{ display:none; font-size:11px; line-height:1.85; color:var(--ink-dim);
+    border-left:2px solid var(--accent-dim); padding:2px 0 2px 11px; }
+  .legend.open{ display:block; }
+  .legend b{ color:var(--ink); font-weight:600; }
+  .legend .sub{ padding-left:12px; }
 
-  .hint{font-size:10px;line-height:1.6;color:var(--ink-faint);}
-  .hint b{color:var(--ink-dim);}
-  kbd{font-family:var(--font-mono);font-size:9.5px;background:var(--bg-well);border:1px solid var(--line);
-    border-radius:4px;padding:1px 5px;color:var(--ink-dim);}
+  /* ---- footer logo (bigger, no hover reaction) ---- */
+  .footer-logo{ display:flex; justify-content:center; align-items:center; padding:6px 0 2px; margin-top:auto; }
+  .footer-logo img{ height:52px; width:auto; opacity:.6; }
 
-  .footer-logo{display:flex;justify-content:center;align-items:center;padding:4px 0 2px;margin-top:auto;}
-  .footer-logo img{height:26px;width:auto;opacity:.34;transition:opacity .2s;
-    filter:saturate(.9);}
-  .footer-logo img:hover{opacity:.7;}
+  /* ---- histogram drawer (hamburger) ---- */
+  .drawer{ position:absolute; inset:0; z-index:20; background:rgba(10,11,13,.72);
+    backdrop-filter:blur(2px); display:none; }
+  .drawer.open{ display:block; }
+  .drawer-panel{ position:absolute; left:0; right:0; top:0; background:var(--bg-panel);
+    border-bottom:1px solid var(--line); padding:14px; box-shadow:0 20px 40px -18px rgba(0,0,0,.7);
+    animation:drawerDown .22s cubic-bezier(.2,.7,.2,1); }
+  @keyframes drawerDown{ from{ transform:translateY(-8px); opacity:0; } to{ transform:translateY(0); opacity:1; } }
+  .drawer-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .drawer-title{ font-size:11px; letter-spacing:.09em; color:var(--ink-dim); text-transform:uppercase; }
+  .panel-key{ font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; }
+  .key-low{ background:rgba(127,159,230,.18); color:var(--lowkey); }
+  .key-mid{ background:var(--accent-dim); color:var(--accent); }
+  .key-high{ background:rgba(207,214,230,.16); color:var(--highkey); }
+  canvas#hist{ width:100%; height:96px; display:block; }
+  .hist-scale{ display:flex; justify-content:space-between; font-size:8.5px; color:var(--ink-faint); margin-top:4px; }
+  .drawer-close{ cursor:pointer; border:1px solid var(--line); background:var(--bg-well); color:var(--ink-dim);
+    border-radius:6px; width:28px; height:26px; font-size:13px; }
+  .drawer-close:hover{ color:var(--ink); }
 </style>
 </head>
 <body>
-
-  <div class="splash" id="splash">
-    <img src="logo.png" alt="Tokomi Value">
-  </div>
 
   <div class="titlebar">
     <div class="titlebar-left">
@@ -142,15 +140,16 @@
     </div>
     <div class="titlebar-right">
       <span class="status-text" id="statusText">未接続</span>
-      <button class="tb-btn danger hidden" id="disconnectBtn" title="共有を解除">&#x23FB;</button>
-      <button class="tb-btn active" id="pinBtn" title="常に最前面（クリックで切替）">&#x25C9;</button>
+      <button class="tb-btn" id="menuBtn" title="ヒストグラムを開く">&#9776;</button>
+      <button class="tb-btn active" id="pinBtn" title="常に最前面に固定">&#128274;</button>
     </div>
   </div>
 
   <div class="body">
     <div class="controlbar">
-      <button class="primary" id="primaryBtn">ウィンドウを選択して開始</button>
-      <button class="live-toggle" id="liveBtn" title="ライブ更新（動かしながら見る）" disabled>&#x25B6;</button>
+      <button class="primary" id="primaryBtn">キャンバスを取得</button>
+      <button class="disconnect-btn hidden" id="disconnectBtn" title="作業画面の反映を解除">&#10005;</button>
+      <button class="live-toggle" id="liveBtn" title="ライブ更新（低fps）" disabled>&#9654;</button>
       <select id="rateSelect" title="ライブ更新の間隔" disabled>
         <option value="500">2fps</option>
         <option value="333" selected>3fps</option>
@@ -170,8 +169,8 @@
       <canvas id="preview" width="500" height="500"></canvas>
       <div class="preview-label" id="previewLabel" style="display:none;"></div>
       <div class="preview-empty" id="emptyState">
-        <div class="big">&#x25E7;</div>
-        <div>「開始」を押してクリスタのウィンドウを共有。<br>以降は <b>&#x1F4F7; 今の画面を取得</b> で最新を読み込みます。</div>
+        <div class="big">&#9703;</div>
+        <div><b>「キャンバスを取得」</b>をクリック後、<br>ここに最新のキャンバス画面が反映されます。</div>
       </div>
     </div>
 
@@ -182,21 +181,30 @@
       <div class="stat"><div class="stat-label">主要 H</div><div class="stat-value mono" id="statH">&mdash;</div></div>
     </div>
 
-    <div class="panel">
-      <div class="panel-head">
-        <span class="panel-title">明度ヒストグラム</span>
-        <span class="panel-key key-mid" id="keyChip">&mdash;</span>
-      </div>
-      <canvas id="hist" width="460" height="70"></canvas>
-      <div class="hist-scale"><span>0 黒</span><span>ローキー</span><span>中間</span><span>ハイキー</span><span>1 白</span></div>
-    </div>
-
-    <div class="hint">
-      <b>&#x1F4F7;</b> で現在のキャンバスを1枚取得（くっきり）。<b>&#x25B6;</b> でライブ更新。
-      <b>呼び出し/しまう:</b> <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>。<b>&#x25C9;</b> 最前面固定。外部通信なし。
+    <button class="legend-toggle" id="legendToggle"><span class="chev">&#9654;</span>使い方</button>
+    <div class="legend" id="legend">
+      <div><b>キャンバスを取得</b> ボタンをクリックで現在の作業画面を反映。</div>
+      <div class="sub"><b>&#10005;</b> で作業画面の反映を解除。</div>
+      <div><b>&#9654;</b> ボタンでライブ更新（低fpsリアルタイム反映）。</div>
+      <div><b>&#128274;</b> ボタンでウインドウを常に最前面に固定可能。</div>
     </div>
 
     <div class="footer-logo"><img src="logo-small.png" alt="Tokomi Value"></div>
+  </div>
+
+  <!-- histogram drawer -->
+  <div class="drawer" id="drawer">
+    <div class="drawer-panel">
+      <div class="drawer-head">
+        <span class="drawer-title">明度ヒストグラム</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="panel-key key-mid" id="keyChip">&mdash;</span>
+          <button class="drawer-close" id="drawerClose">&#10005;</button>
+        </div>
+      </div>
+      <canvas id="hist" width="460" height="96"></canvas>
+      <div class="hist-scale"><span>0 黒</span><span>ローキー</span><span>中間</span><span>ハイキー</span><span>1 白</span></div>
+    </div>
   </div>
 
 <script>
@@ -205,18 +213,20 @@
 
   const TAURI = (typeof window !== 'undefined') && window.__TAURI__;
   const invoke = TAURI ? window.__TAURI__.core.invoke : null;
+  const ACCENT = '#6495ed';
 
-  // Two analysis resolutions: crisp one-shot grab vs. lighter continuous stream.
-  const RES_GRAB = 240;
-  const RES_STREAM = 88;
+  const RES_GRAB = 240;   // crisp one-shot
+  const RES_STREAM = 88;  // light continuous
 
   const el = {
-    splash:document.getElementById('splash'),
     primaryBtn:document.getElementById('primaryBtn'),
     liveBtn:document.getElementById('liveBtn'),
     rateSelect:document.getElementById('rateSelect'),
     disconnectBtn:document.getElementById('disconnectBtn'),
     pinBtn:document.getElementById('pinBtn'),
+    menuBtn:document.getElementById('menuBtn'),
+    drawer:document.getElementById('drawer'),
+    drawerClose:document.getElementById('drawerClose'),
     liveDot:document.getElementById('liveDot'),
     statusText:document.getElementById('statusText'),
     emptyState:document.getElementById('emptyState'),
@@ -227,18 +237,18 @@
     statL:document.getElementById('statL'), statSigma:document.getElementById('statSigma'),
     statC:document.getElementById('statC'), statH:document.getElementById('statH'),
     keyChip:document.getElementById('keyChip'),
+    legendToggle:document.getElementById('legendToggle'), legend:document.getElementById('legend'),
   };
   const pctx = el.preview.getContext('2d',{willReadFrequently:true});
   const hctx = el.hist.getContext('2d');
 
-  // reusable offscreen sample canvas, sized per analysis pass
   const sample = document.createElement('canvas');
   const sctx = sample.getContext('2d',{willReadFrequently:true});
 
   const state = { stream:null, video:null, liveTimer:null, mode:'normal',
-                  connected:false, live:false, pinned:true };
+                  connected:false, live:false, pinned:true, lastRes:RES_GRAB };
 
-  // --- perf: sRGB(0..255) -> linear lookup, so the hot loop avoids pow() ---
+  // ---- colour math: sRGB(0..255) -> linear LUT, then OKLab/OKLCh ----
   const LIN = new Float32Array(256);
   for(let i=0;i<256;i++){ const c=i/255; LIN[i]=c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4); }
   const linToSrgb = c => { const v=c<=0.0031308?12.92*c:1.055*Math.pow(c,1/2.4)-0.055; return v<0?0:v>1?255:(v*255+.5)|0; };
@@ -267,11 +277,13 @@
              linToSrgb(-0.0041960863*l-0.7034186147*m+1.7076147010*s) ];
   }
 
-  // ------------------------------------------------------------------ capture
+  const waitFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  // ---- capture ----
   async function connect(){
     let stream;
     try{ stream = await navigator.mediaDevices.getDisplayMedia({video:{frameRate:10},audio:false}); }
-    catch(e){ return; } // picker dismissed
+    catch(e){ return; }
     state.stream=stream;
     state.video=document.createElement('video');
     state.video.srcObject=stream; await state.video.play();
@@ -279,19 +291,19 @@
     stream.getVideoTracks()[0].addEventListener('ended', disconnect);
 
     el.emptyState.style.display='none';
-    el.primaryBtn.textContent='\uD83D\uDCF7 今の画面を取得';
+    el.primaryBtn.textContent='キャンバスを取得';
     el.liveBtn.disabled=false;
     el.disconnectBtn.classList.remove('hidden');
     setStatus('armed','取得待機');
-    grabOnce(); // show the first frame immediately
+    await waitFrame();   // ensure the first frame is decoded before grabbing
+    grabOnce();
   }
 
   function disconnect(){
     setLive(false);
     if(state.stream) state.stream.getTracks().forEach(t=>t.stop());
     state.stream=null; state.video=null; state.connected=false;
-
-    el.primaryBtn.textContent='ウィンドウを選択して開始';
+    el.primaryBtn.textContent='キャンバスを取得';
     el.liveBtn.disabled=true; el.disconnectBtn.classList.add('hidden');
     el.emptyState.style.display='flex';
     setStatus('','未接続');
@@ -305,24 +317,21 @@
     if(!state.connected) return;
     analyze(RES_GRAB);
     el.previewWrap.classList.remove('flash');
-    void el.previewWrap.offsetWidth;      // restart the shutter animation
+    void el.previewWrap.offsetWidth;
     el.previewWrap.classList.add('flash');
   }
 
   function setLive(on){
     state.live=on;
     el.liveBtn.classList.toggle('active',on);
-    el.liveBtn.innerHTML = on ? '&#x23F8;' : '&#x25B6;';
-    el.rateSelect.disabled = !on;
+    el.rateSelect.disabled=!on;
     if(state.liveTimer){ clearTimeout(state.liveTimer); state.liveTimer=null; }
     if(on && state.connected){
       setStatus('live','ライブ更新');
       const tick=()=>{ if(!state.live||!state.video) return; analyze(RES_STREAM);
         state.liveTimer=setTimeout(tick,parseInt(el.rateSelect.value,10)); };
       tick();
-    }else if(state.connected){
-      setStatus('armed','取得待機');
-    }
+    }else if(state.connected){ setStatus('armed','取得待機'); }
   }
 
   function setStatus(kind,text){
@@ -331,25 +340,25 @@
     el.liveDot.className='dot'+(kind?' '+kind:'');
   }
 
-  // ------------------------------------------------------------------ analysis
+  // ---- analysis (preview backing store is a fixed 500x500 square; CSS scales it uniformly) ----
   function analyze(res){
     const v=state.video; if(!v||!v.videoWidth) return;
+    state.lastRes=res;
     const side=Math.min(v.videoWidth,v.videoHeight);
     const sx=(v.videoWidth-side)/2, sy=(v.videoHeight-side)/2;
 
     if(sample.width!==res){ sample.width=res; sample.height=res; }
     sctx.drawImage(v,sx,sy,side,side,0,0,res,res);
-    const src=sctx.getImageData(0,0,res,res).data;
+    const srcData=sctx.getImageData(0,0,res,res).data;
     const N=res*res;
     const Ls=new Float32Array(N);
     const hueBins=new Float32Array(36);
     let sumL=0,sumC=0;
-    const mode=state.mode;
-    const buildMap = (mode!=='normal');
-    const out = buildMap ? sctx.createImageData(res,res) : null;
+    const mode=state.mode, buildMap=(mode!=='normal');
+    const out=buildMap?sctx.createImageData(res,res):null;
 
     for(let i=0,p=0;i<N;i++,p+=4){
-      const r=src[p],g=src[p+1],b=src[p+2];
+      const r=srcData[p],g=srcData[p+1],b=srcData[p+2];
       const [L,C,H]=rgbToOklch(r,g,b);
       Ls[i]=L; sumL+=L; sumC+=C;
       if(C>0.02) hueBins[(H/10|0)%36]+=C;
@@ -362,18 +371,11 @@
       }
     }
 
-    // paint preview
     pctx.imageSmoothingEnabled=true;
     pctx.clearRect(0,0,el.preview.width,el.preview.height);
-    if(buildMap){
-      sctx.putImageData(out,0,0);
-      pctx.drawImage(sample,0,0,el.preview.width,el.preview.height);
-    }else{
-      // normal mode: draw the source frame directly for maximum crispness
-      pctx.drawImage(v,sx,sy,side,side,0,0,el.preview.width,el.preview.height);
-    }
+    if(buildMap){ sctx.putImageData(out,0,0); pctx.drawImage(sample,0,0,el.preview.width,el.preview.height); }
+    else { pctx.drawImage(v,sx,sy,side,side,0,0,el.preview.width,el.preview.height); }
 
-    // stats
     const meanL=sumL/N, meanC=sumC/N;
     let varSum=0; for(let i=0;i<N;i++){const d=Ls[i]-meanL;varSum+=d*d;}
     const sigma=Math.sqrt(varSum/N);
@@ -404,27 +406,45 @@
     const bw=w/bins;
     for(let i=0;i<bins;i++){
       const bh=(counts[i]/maxC)*(h-4);
-      hctx.fillStyle=`oklch(${((i/bins)*100).toFixed(0)}% 0.02 95)`;
+      const v=Math.round((i/bins)*100);
+      hctx.fillStyle=`rgb(${Math.round(v*2.55)},${Math.round(v*2.55)},${Math.round(v*2.55)})`;
       hctx.fillRect(i*bw+0.5,h-bh,bw-1,bh);
     }
     const mx=meanL*w;
-    hctx.strokeStyle='oklch(78% 0.16 95)'; hctx.lineWidth=1.5;
+    hctx.strokeStyle=ACCENT; hctx.lineWidth=1.5;
     hctx.beginPath(); hctx.moveTo(mx,0); hctx.lineTo(mx,h); hctx.stroke();
   }
 
-  // ------------------------------------------------------------------ pin (native)
+  // ---- pin (native) ----
   async function setPinned(on){
     state.pinned=on;
     el.pinBtn.classList.toggle('active',on);
-    el.pinBtn.title = on ? '常に最前面：ON（クリックでOFF）' : '常に最前面：OFF（クリックでON）';
+    el.pinBtn.innerHTML = on ? '&#128274;' : '&#128275;';   // 🔒 / 🔓
+    el.pinBtn.title = on ? '常に最前面：ON' : '常に最前面：OFF';
     if(invoke){ try{ await invoke('set_always_on_top',{on}); }catch(e){} }
   }
 
-  // ------------------------------------------------------------------ wiring
+  // ---- drawer ----
+  function toggleDrawer(force){
+    const open = force!==undefined ? force : !el.drawer.classList.contains('open');
+    el.drawer.classList.toggle('open',open);
+    el.menuBtn.classList.toggle('active',open);
+  }
+
+  // ---- wiring ----
   el.primaryBtn.addEventListener('click',()=> state.connected ? grabOnce() : connect());
   el.liveBtn.addEventListener('click',()=>{ if(state.connected) setLive(!state.live); });
   el.disconnectBtn.addEventListener('click', disconnect);
   el.pinBtn.addEventListener('click',()=>setPinned(!state.pinned));
+  el.menuBtn.addEventListener('click',()=>toggleDrawer());
+  el.drawerClose.addEventListener('click',()=>toggleDrawer(false));
+  el.drawer.addEventListener('click',(e)=>{ if(e.target===el.drawer) toggleDrawer(false); });
+
+  el.legendToggle.addEventListener('click',()=>{
+    const open=!el.legend.classList.contains('open');
+    el.legend.classList.toggle('open',open);
+    el.legendToggle.classList.toggle('open',open);
+  });
 
   document.querySelectorAll('.tab').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -433,20 +453,9 @@
       const labels={normal:'',value:'VALUE  L*',hue:'HUE  H (uniform L)',chroma:'CHROMA  C'};
       const t=labels[state.mode];
       el.previewLabel.style.display=t?'block':'none'; el.previewLabel.textContent=t;
-      // reflect the new mode right away on the current frame
       if(state.connected && !state.live) grabOnce();
     });
   });
-
-  // opening splash: fade in, hold, fade out, then remove
-  function dismissSplash(){
-    if(!el.splash || el.splash.dataset.done) return;
-    el.splash.dataset.done='1';
-    el.splash.classList.add('done');
-    el.splash.addEventListener('animationend',()=>el.splash.remove(),{once:true});
-    setTimeout(()=>el.splash&&el.splash.remove(),800);
-  }
-  setTimeout(dismissSplash, 2100);
 
   setPinned(true);
 })();
